@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<!-- Catálogo de filmes, seguindo o esquema desenhado à mão.
+     Cada filme mostra: nome, ano e nota do IMDb (esquerda), duração (meio)
+     e a classificação (direita): uma caixa "Já visto" e 5 estrelas para dar a tua nota.
+     Para acrescentar filmes, edita a lista na zona <script>, lá em baixo. -->
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Os Meus Filmes</title>
+
+  <style>
+    :root {
+      --fundo: #f3f1f7;
+      --texto: #241f33;
+      --suave: #5d5872;
+      --linha: #d9d4e6;
+      --destaque: #b3261e;
+      --estrela: #d4870a;
+      --estrela-vazia: #a7a1bb;
+    }
+
+    body {
+      margin: 0;
+      background: var(--fundo);
+      color: var(--texto);
+      font-family: system-ui, sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 48rem;
+      margin: 0 auto;
+      padding: 3.5rem 1.5rem;
+    }
+
+    h1 {
+      font-family: Georgia, serif;
+      font-size: clamp(2.2rem, 8vw, 3.5rem);
+      line-height: 1.05;
+      margin: 0 0 0.5rem;
+    }
+
+    #resumo { color: var(--suave); margin: 0 0 1.5rem; }
+
+    ul { list-style: none; margin: 0; padding: 0; }
+
+    /* Cabeçalho e linhas usam as mesmas 3 colunas: [filme] [duração] [classificação] */
+    .cabecalho,
+    li {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.4fr);
+      gap: 0.5rem 1.5rem;
+      align-items: center;
+    }
+
+    .cabecalho {
+      color: var(--suave);
+      font-size: 0.85rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--texto);
+    }
+
+    li {
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--linha);
+    }
+
+    .titulo { font-weight: 700; font-size: 1.1rem; }
+    .info { color: var(--suave); font-size: 0.95rem; }
+    .duracao { font-size: 0.95rem; }
+
+    /* Coluna da classificação: caixa "Já visto" e, por baixo, as estrelas */
+    .classificacao { display: flex; flex-direction: column; gap: 0.25rem; }
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      cursor: pointer;
+      width: fit-content;
+    }
+
+    input[type="checkbox"] {
+      width: 1.4rem;
+      height: 1.4rem;
+      accent-color: var(--destaque);
+      cursor: pointer;
+    }
+
+    /* As estrelas são 5 botões. Cada um escolhe a nota correspondente. */
+    .estrelas { display: flex; gap: 0.1rem; }
+    .estrelas[hidden] { display: none; }
+
+    .estrelas button {
+      font-size: 1.7rem;
+      line-height: 1;
+      padding: 0.1rem;
+      border: 0;
+      background: transparent;
+      color: var(--estrela-vazia);
+      cursor: pointer;
+    }
+
+    .estrelas button.cheia { color: var(--estrela); }
+
+    input[type="checkbox"]:focus-visible,
+    .estrelas button:focus-visible {
+      outline: 3px solid var(--destaque);
+      outline-offset: 2px;
+    }
+
+    /* Em ecrãs pequenos, as colunas passam a ficar umas por baixo das outras */
+    @media (max-width: 40rem) {
+      .cabecalho { display: none; }
+      li { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <h1>Os meus filmes</h1>
+    <p id="resumo"></p>
+
+    <div class="cabecalho" aria-hidden="true">
+      <div>Filme</div>
+      <div>Duração</div>
+      <div>Classificação</div>
+    </div>
+    <ul id="lista"></ul>
+  </main>
+
+  <script>
+    // Para cada filme só precisas de:
+    //   titulo:  o nome
+    //   ano:     o ano de estreia
+    //   imdb:    a nota do IMDb (procura o filme em imdb.com e copia o número)
+    //   duracao: a duração em minutos (por exemplo, 2h 10min = 130)
+    // ATENÇÃO: as notas e durações abaixo são só exemplos. Confirma-as e corrige.
+    // Se já viste o filme e quantas estrelas deste NÃO se escreve aqui:
+    // isso marcas tu na página, clicando.
+    const filmes = [
+      { titulo: "Interstellar", ano: 2014, imdb: 8.7, duracao: 169 },
+      { titulo: "Parasitas", ano: 2019, imdb: 8.5, duracao: 132 },
+      { titulo: "O Padrinho", ano: 1972, imdb: 9.2, duracao: 175 },
+      { titulo: "A Viagem de Chihiro", ano: 2001, imdb: 8.6, duracao: 125 },
+      { titulo: "Origem", ano: 2010, imdb: 8.8, duracao: 148 }
+    ];
+
+    // GUARDAR O QUE MARCAS: usamos o "localStorage", uma pequena memória do browser.
+    // Fica guardado neste browser e neste dispositivo, e não é partilhado com outros.
+    const CHAVE = "meus-filmes-v2";
+
+    function carregar() {
+      try {
+        return JSON.parse(localStorage.getItem(CHAVE)) || {};
+      } catch (erro) {
+        return {};
+      }
+    }
+
+    function guardar() {
+      try {
+        localStorage.setItem(CHAVE, JSON.stringify(estado));
+      } catch (erro) {
+        // se não for possível guardar, a página continua a funcionar
+      }
+    }
+
+    // estado: para cada filme, { visto: true/false, nota: 0 a 5 }
+    const estado = carregar();
+
+    const lista = document.getElementById("lista");
+    const resumo = document.getElementById("resumo");
+
+    function identificar(filme) {
+      return filme.titulo + " " + filme.ano;
+    }
+
+    // 169 -> "2h 49min"
+    function formatarDuracao(minutos) {
+      const horas = Math.floor(minutos / 60);
+      const resto = String(minutos % 60).padStart(2, "0");
+      return horas + "h " + resto + "min";
+    }
+
+    function atualizarResumo() {
+      const vistos = filmes.filter((f) => estado[identificar(f)]?.visto).length;
+      resumo.textContent = "Já vi " + vistos + " de " + filmes.length + " filmes.";
+    }
+
+    // Cria as 5 estrelas. Clicar na estrela N dá N estrelas.
+    // Clicar outra vez na estrela já escolhida tira a nota.
+    function criarEstrelas(id, filme) {
+      const grupo = document.createElement("div");
+      grupo.className = "estrelas";
+      grupo.setAttribute("role", "group");
+      grupo.setAttribute("aria-label", "A tua classificação para " + filme.titulo);
+      grupo.hidden = !estado[id]?.visto;
+
+      const botoes = [];
+
+      function pintar() {
+        const nota = estado[id]?.nota || 0;
+        botoes.forEach((botao, i) => {
+          botao.textContent = i < nota ? "★" : "☆";
+          botao.classList.toggle("cheia", i < nota);
+          botao.setAttribute("aria-pressed", String(i + 1 === nota));
+        });
+      }
+
+      for (let n = 1; n <= 5; n++) {
+        const botao = document.createElement("button");
+        botao.type = "button";
+        botao.setAttribute("aria-label", n + (n === 1 ? " estrela" : " estrelas"));
+
+        botao.addEventListener("click", () => {
+          const atual = estado[id] || { visto: true, nota: 0 };
+          atual.nota = atual.nota === n ? 0 : n;
+          estado[id] = atual;
+          guardar();
+          pintar();
+        });
+
+        botoes.push(botao);
+        grupo.append(botao);
+      }
+
+      pintar();
+      return grupo;
+    }
+
+    function desenhar() {
+      for (const filme of filmes) {
+        const id = identificar(filme);
+        const li = document.createElement("li");
+
+        // Coluna 1: nome, ano e nota do IMDb
+        const esquerda = document.createElement("div");
+        const titulo = document.createElement("div");
+        titulo.className = "titulo";
+        titulo.textContent = filme.titulo;
+        const info = document.createElement("div");
+        info.className = "info";
+        info.textContent = filme.ano + ", IMDb " + filme.imdb.toFixed(1);
+        esquerda.append(titulo, info);
+
+        // Coluna 2: duração
+        const duracao = document.createElement("div");
+        duracao.className = "duracao";
+        duracao.textContent = formatarDuracao(filme.duracao);
+
+        // Coluna 3: caixa "Já visto" e estrelas
+        const classificacao = document.createElement("div");
+        classificacao.className = "classificacao";
+
+        const label = document.createElement("label");
+        const caixa = document.createElement("input");
+        caixa.type = "checkbox";
+        caixa.checked = Boolean(estado[id]?.visto);
+        label.append(caixa, document.createTextNode("Já visto"));
+
+        const estrelas = criarEstrelas(id, filme);
+
+        caixa.addEventListener("change", () => {
+          estado[id] = { visto: caixa.checked, nota: estado[id]?.nota || 0 };
+          estrelas.hidden = !caixa.checked;
+          guardar();
+          atualizarResumo();
+        });
+
+        classificacao.append(label, estrelas);
+
+        li.append(esquerda, duracao, classificacao);
+        lista.append(li);
+      }
+    }
+
+    desenhar();
+    atualizarResumo();
+  </script>
+</body>
+</html>
