@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<!-- Catálogo de filmes interativo.
+     Clicas num filme para o marcar como visto e depois escolhes a tua nota.
+     O que marcares fica guardado NESTE browser (ver a explicação no script). -->
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Os Meus Filmes</title>
+
+  <style>
+    :root {
+      --fundo: #f3f1f7;
+      --texto: #241f33;
+      --suave: #5d5872;
+      --linha: #d9d4e6;
+      --destaque: #b3261e;
+    }
+
+    body {
+      margin: 0;
+      background: var(--fundo);
+      color: var(--texto);
+      font-family: system-ui, sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 44rem;
+      margin: 0 auto;
+      padding: 3.5rem 1.5rem;
+    }
+
+    h1 {
+      font-family: Georgia, serif;
+      font-size: clamp(2.2rem, 8vw, 3.5rem);
+      line-height: 1.05;
+      margin: 0 0 0.5rem;
+    }
+
+    #resumo { color: var(--suave); margin: 0 0 1.5rem; }
+
+    ul { list-style: none; margin: 0; padding: 0; }
+
+    /* Cada filme: [caixa de visto] [título e ano] [IMDb] [nota] */
+    li {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 0.5rem 1.25rem;
+      align-items: center;
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--linha);
+    }
+
+    /* O label envolve a caixa e o título: clicar em qualquer um marca o filme */
+    label {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      cursor: pointer;
+    }
+
+    input[type="checkbox"] {
+      width: 1.6rem;
+      height: 1.6rem;
+      accent-color: var(--destaque);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    input[type="checkbox"]:focus-visible,
+    select:focus-visible {
+      outline: 3px solid var(--destaque);
+      outline-offset: 3px;
+    }
+
+    .titulo { font-weight: 700; font-size: 1.1rem; }
+    .ano { color: var(--suave); font-weight: 400; }
+
+    .imdb { text-align: center; min-width: 3.5rem; }
+    .imdb strong { display: block; font-size: 1.15rem; }
+    .imdb span { font-size: 0.8rem; color: var(--suave); }
+
+    select {
+      font: inherit;
+      padding: 0.35rem 0.5rem;
+      border: 2px solid var(--texto);
+      border-radius: 0.5rem;
+      background: transparent;
+      color: var(--texto);
+    }
+
+    /* Enquanto o filme não estiver visto, o seletor da nota está escondido */
+    select[hidden] { display: none; }
+
+    @media (max-width: 34rem) {
+      li { grid-template-columns: 1fr auto; }
+      label { grid-column: 1 / -1; }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <h1>Os meus filmes</h1>
+    <p id="resumo"></p>
+    <ul id="lista"></ul>
+  </main>
+
+  <script>
+    // Para cada filme só precisas de:
+    //   titulo: o nome
+    //   ano:    o ano de estreia
+    //   imdb:   a nota do IMDb (procura o filme em imdb.com e copia o número)
+    // ATENÇÃO: estas notas do IMDb são só exemplos. Confirma-as no site e corrige.
+    // Se já viste o filme e qual a nota que lhe deste NÃO se escreve aqui:
+    // isso marcas tu na página, clicando.
+    const filmes = [
+      { titulo: "Interstellar", ano: 2014, imdb: 8.7 },
+      { titulo: "Parasitas", ano: 2019, imdb: 8.5 },
+      { titulo: "O Padrinho", ano: 1972, imdb: 9.2 },
+      { titulo: "A Viagem de Chihiro", ano: 2001, imdb: 8.6 },
+      { titulo: "Origem", ano: 2010, imdb: 8.8 }
+    ];
+
+    // GUARDAR O QUE MARCAS: usamos o "localStorage", uma pequena memória do browser.
+    // Fica guardado neste browser e neste dispositivo. Não é partilhado:
+    // noutro telemóvel ou computador, a lista aparece sem nada marcado.
+    const CHAVE = "meus-filmes";
+
+    function carregar() {
+      try {
+        return JSON.parse(localStorage.getItem(CHAVE)) || {};
+      } catch (erro) {
+        return {}; // se o browser não deixar guardar, começa vazio
+      }
+    }
+
+    function guardar() {
+      try {
+        localStorage.setItem(CHAVE, JSON.stringify(estado));
+      } catch (erro) {
+        // se não for possível guardar, a página continua a funcionar
+      }
+    }
+
+    // estado: para cada filme, { visto: true/false, nota: "1" a "10" }
+    const estado = carregar();
+
+    const lista = document.getElementById("lista");
+    const resumo = document.getElementById("resumo");
+
+    function atualizarResumo() {
+      const vistos = filmes.filter((f) => estado[identificar(f)]?.visto).length;
+      resumo.textContent = "Já vi " + vistos + " de " + filmes.length + " filmes.";
+    }
+
+    // Um nome único para cada filme, para o guardar no estado
+    function identificar(filme) {
+      return filme.titulo + " " + filme.ano;
+    }
+
+    // Cria o seletor da nota (1 a 10)
+    function criarSeletor(id, filme) {
+      const seletor = document.createElement("select");
+      seletor.setAttribute("aria-label", "A tua nota para " + filme.titulo);
+
+      const vazio = new Option("Nota", "");
+      seletor.add(vazio);
+      for (let n = 1; n <= 10; n++) {
+        seletor.add(new Option(n + " / 10", String(n)));
+      }
+
+      seletor.value = estado[id]?.nota || "";
+      seletor.hidden = !estado[id]?.visto;
+
+      seletor.addEventListener("change", () => {
+        estado[id].nota = seletor.value;
+        guardar();
+      });
+      return seletor;
+    }
+
+    function desenhar() {
+      for (const filme of filmes) {
+        const id = identificar(filme);
+        const li = document.createElement("li");
+
+        // Caixa de visto + título
+        const label = document.createElement("label");
+        const caixa = document.createElement("input");
+        caixa.type = "checkbox";
+        caixa.checked = Boolean(estado[id]?.visto);
+
+        const texto = document.createElement("div");
+        const titulo = document.createElement("div");
+        titulo.className = "titulo";
+        titulo.textContent = filme.titulo + " ";
+        const ano = document.createElement("span");
+        ano.className = "ano";
+        ano.textContent = "(" + filme.ano + ")";
+        titulo.append(ano);
+        texto.append(titulo);
+        label.append(caixa, texto);
+
+        // Nota do IMDb
+        const imdb = document.createElement("div");
+        imdb.className = "imdb";
+        const valor = document.createElement("strong");
+        valor.textContent = filme.imdb.toFixed(1);
+        const legenda = document.createElement("span");
+        legenda.textContent = "IMDb";
+        imdb.append(valor, legenda);
+
+        // A tua nota (só aparece quando o filme está visto)
+        const seletor = criarSeletor(id, filme);
+
+        // Quando marcas ou desmarcas a caixa
+        caixa.addEventListener("change", () => {
+          estado[id] = { visto: caixa.checked, nota: estado[id]?.nota || "" };
+          seletor.hidden = !caixa.checked;
+          guardar();
+          atualizarResumo();
+        });
+
+        li.append(label, imdb, seletor);
+        lista.append(li);
+      }
+    }
+
+    desenhar();
+    atualizarResumo();
+  </script>
+</body>
+</html>
